@@ -1,0 +1,7 @@
+# Compiler
+CXX := g++
+
+# Flags
+CXXFLAGS := -Wall -Wextra -pedantic -g -O3 -funroll-loops
+CPPFLAGS :=
+LDFLAGS  :=

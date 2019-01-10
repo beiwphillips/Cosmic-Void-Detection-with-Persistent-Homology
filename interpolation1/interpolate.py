@@ -16,18 +16,18 @@ import plotly.graph_objs as go
 
 
 class Interpolate:
-    def __init__(self, filepath=None, sample_size=None, sample_rate=None, noise=0):
-        if filepath is None:
-            filepath = sys.argv[1]
-        self.data = fits.open(filepath)
+    def __init__(self):
+        self.data = None
         self.Q = None
-        self.p = None
+        self.P = None
+        self.delta = None
+        self.offset = None
 
-        self.get_data(sample_size, sample_rate, noise)
-
-    def get_data(self, sample_size, sample_rate, noise, viz=False):
+    def get_data(self, filepath, sample_size=None, sample_rate=None, noise=0.1, viz=False):
         print('******READING******')
+        self.data = fits.open(filepath)
         length = len(self.data)
+
         if sample_size is not None:
             idx = np.random.choice(np.arange(1, length), size=sample_size, replace=False)
         elif sample_rate is not None:
@@ -53,20 +53,20 @@ class Interpolate:
         x, y, z = np.dot(self.Q, np.array([x, y, z]))
 
         # shifting cordinates
-        x -= x.min() - 5
-        y -= y.min() - 5
-        z -= z.min() - 5
+        x -= x.min()
+        y -= y.min()
+        z -= z.min()
 
         # generating noise data
         n = np.ones_like(x) * noise
 
         # concatenating together
-        self.p = np.vstack([x, y, z, n, v]).T
+        self.P = np.vstack([x, y, z, n, v]).T
 
         if viz:
             self.visualize3d(x, y, z)
 
-        print('Read {} points from the file'.format(self.p.shape[0]))
+        print('Read {} points from the file'.format(self.P.shape[0]))
 
     def __read_line(self, line):
         ra = (line.header['RA']) * np.pi / 180
@@ -122,12 +122,14 @@ class Interpolate:
 
         self.Q = Q
 
-    def process_cube(self):
-        self.dachshund(self.p, 0)
+    def process_cube(self, delta=4, offset=0):
+        self.delta = delta
+        self.offset = offset
+        self.dachshund(self.P, 0)
 
     def process_points(self, n_points=10000, iterate_whole_cube=False, viz=False):
         print('******PROCESSING WITH {} points******'.format(n_points))
-        z = self.p[:,2]
+        z = self.P[:, 2]
         zmin = math.floor(z.min())
         zmax = math.ceil(z.max())
         start = zmin
@@ -140,17 +142,17 @@ class Interpolate:
                     break
                 end += 1
             print('Processing z range: {} - {}'.format(start, end))
-            self.dachshund(self.p[idx], cnt)
+            self.dachshund(self.P[idx], cnt)
             start = end
             cnt += 1
             if not iterate_whole_cube:
                 if viz:
-                    self.visualize_interpolation(0, self.p[idx, 0], self.p[idx, 1], self.p[idx, 2])
-                    self.visualize3d(self.p[idx, 0], self.p[idx, 1], self.p[idx, 2])
+                    self.visualize_interpolation(0, self.P[idx, 0], self.P[idx, 1], self.P[idx, 2])
+                    self.visualize3d(self.P[idx, 0], self.P[idx, 1], self.P[idx, 2])
                 break
         print('******FINISHED******')
 
-    def dachshund(self, chunk, i):
+    def dachshund(self, chunk, cnt):
 
         # write binary file
         chunk.tofile('pixel_data.bin')
@@ -163,15 +165,21 @@ class Interpolate:
         y = chunk[:,1]
         z = chunk[:,2]
 
-        npx_x = int(np.floor((x.max() - x.min()) / 2.))
-        npx_y = int(np.floor((y.max() - y.min()) / 2.))
-        npx_z = int(np.floor((z.max() - z.min()) / 2.))
+        # original cube dimensions (in megaparsec)
+        lx = x.max() - x.min()
+        ly = y.max() - y.min()
+        lz = z.max() - z.min()
+
+        # interpolated cube dimensions (num of pixels)
+        npx_x = int(np.floor(lx) // self.delta)
+        npx_y = int(np.floor(ly) // self.delta)
+        npx_z = int(np.floor(lz) // self.delta)
 
         # write config file
         cf = open("void.cfg", "w")
-        cf.write("lx = %f\n" % (x.max() + 5))
-        cf.write("ly = %f\n" % (y.max() + 5))
-        cf.write("lz = %f\n" % (z.max() + 5))
+        cf.write("lx = %f\n" % lx)
+        cf.write("ly = %f\n" % ly)
+        cf.write("lz = %f\n" % lz)
         cf.write("num_pixels = %i\n" % len(x))
         cf.write("map_nx = %i\n" % npx_x)
         cf.write("map_ny = %i\n" % npx_y)
@@ -185,7 +193,7 @@ class Interpolate:
 
         message1 = subprocess.run(['./dachshund.exe', 'void.cfg'], stdout=sys.stdout)
         print(message1)
-        newname = 'map{}.bin'.format(i)
+        newname = 'map{}.bin'.format(cnt)
         message2 = subprocess.run(['mv', 'map.bin', newname], stdout=sys.stdout)
         print(message2)
 
@@ -227,5 +235,6 @@ class Interpolate:
 
 
 if __name__ == '__main__':
-    interpolate = Interpolate('delta_transmission_RMplate.fits', sample_rate=1, noise=0.1)
-    interpolate.process_one(viz=True)
+    interpolate = Interpolate()
+    interpolate.get_data('delta_transmission_RMplate.fits', sample_rate=1, noise=0.1)
+    interpolate.process_cube()

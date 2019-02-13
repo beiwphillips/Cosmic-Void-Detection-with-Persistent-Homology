@@ -34,7 +34,7 @@ class Interpolate:
     def __len__(self):
         return len(self.fits) - 1
 
-    def get_data(self, sample_rate=1, sample_size=None, noise=0.1, viz=False):
+    def get_data(self, sample_rate=1, sample_size=None, noise=0.1, viz=True):
         """
 
         :param sample_rate:
@@ -150,6 +150,14 @@ class Interpolate:
 
         return x, y, z, v
 
+    def process_cube(self, spacing=4, viz=True):
+
+        print('****** PROCESSING WHOLE DATA CUBE ******')
+
+        self.__dachshund__(self.data, spacing, viz=viz)
+
+        print('****** FINISHED PROCESSING ******')
+
     def process_box(self, spacing=4, xcuts=None, ycuts=None, zcuts=None, viz=True):
 
         x, y, z = self.data[:, :3].T
@@ -181,7 +189,7 @@ class Interpolate:
 
     def process_points(self, spacing=4, n_points=10000, iterate_whole_cube=False, viz=True):
 
-        print('******PROCESSING WITH {} points******'.format(n_points))
+        print('****** PROCESSING WITH {} points ******'.format(n_points))
 
         z = self.data[:, 2]
         zmin = math.floor(z.min())
@@ -206,7 +214,8 @@ class Interpolate:
 
         print('****** FINISHED PROCESSING ******')
 
-    def __dachshund__(self, data, spacing, viz, prefix=''):
+    @staticmethod
+    def __dachshund__(data, spacing, viz, prefix=''):
 
         print('****** RUNNING DACHSHUND ******')
 
@@ -285,4 +294,5 @@ class Interpolate:
 if __name__ == '__main__':
     interpolate = Interpolate('delta_transmission_RMplate.fits')
     interpolate.get_data()
-    interpolate.process_box(xcuts=[-30, 30], ycuts=[-30, 30], zcuts=[3600, 3630])
+    interpolate.process_cube(spacing=10)
+    # interpolate.process_box(spacing=4, xcuts=[-30, 30], ycuts=[-30, 30], zcuts=[3600, 3630])

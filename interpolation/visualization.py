@@ -106,3 +106,8 @@ def visualize3d(x, y, z):
     )
     fig = go.Figure(data=[trace])
     plot(fig)
+
+
+if __name__ == '__main__':
+    visualizeMap('pixel_data.npy', 'map.bin', 'void.cfg', cuts={'x': [], 'y': [], 'z': [1, 2, 3]},
+                 width=5, prefix='')
